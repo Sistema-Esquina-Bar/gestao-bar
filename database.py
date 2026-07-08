@@ -11,7 +11,7 @@ def get_conn() -> sqlite3.Connection:
 def init_db():
     with get_conn() as conn:
         conn.executescript("""
-            CREATE TABLE IF NOT EXISTS funcionários (
+            CREATE TABLE IF NOT EXISTS funcionario (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 email       TEXT NOT NULL,
                 nome        TEXT NOT NULL,
@@ -38,10 +38,20 @@ def init_db():
             CREATE TABLE IF NOT EXISTS produto (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
                 nome            TEXT NOT NULL,
+                preco           DECIMAL(4,2),
                 descrição           TEXT NOT NULL,
                 categoria_id            INTEGER NOT NULL,
                 FOREIGN KEY (categoria_id)      REFERENCES categoria(id)
             );         
+
+                CREATE TABLE IF NOT EXISTS pedido (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero_da_mesa          INTEGER NOT NULL,
+                estado_pedido           TEXT NOT NULL,        
+                funcionario_id            INTEGER NOT NULL,
+                data_criacao    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (funcionario_id)          REFERENCES funcionario(id)
+            );            
 
                 CREATE TABLE IF NOT EXISTS pedido_produto (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,19 +60,6 @@ def init_db():
                 produto_id          INTEGER NOT NULL,
                 FOREIGN KEY (pedido_id)          REFERENCES pedido(id),
                 FOREIGN KEY (produto_id)          REFERENCES produto(id)  
+            );
 
-            );
-                           
-                CREATE TABLE IF NOT EXISTS pedido (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                numero_da_mesa          INTEGER NOT NULL,
-                estado_pedido           TEXT NOT NULL,        
-                funcionarios_id            INTEGER NOT NULL,
-                pedido_produto_id               INTEGER NOT NULL,
-                data_criacao    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,           
-                FOREIGN KEY (funcionarios_id)          REFERENCES funcionários(id),
-                FOREIGN KEY (pedido_produto_id)          REFERENCES pedido_produto(id)    
-            );
-            
             """)
-        

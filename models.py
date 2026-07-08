@@ -16,7 +16,7 @@ class GerenteEntrada (BaseModel):
     email: str
     nome: str
     cpf: str
-    data_de_nascimento: str
+    data_nascimento: str
     senha: str
 
 class Gerente(GerenteEntrada):
@@ -32,18 +32,26 @@ class categoria(categoriaEntrada):
 #Cadastro dos produtos
 class produtoEntrada(BaseModel):
     nome: str
+    preco: float    
     categoria_id: int
-    descricao: str
+    descrição: str
 
 class produto(produtoEntrada):
     id: int
 
+class pedido_produtoEntrada(BaseModel):
+    quantidade: str
+    pedido_id: int
+    produto_id: int
+
+class pedido_produto(pedido_produtoEntrada):
+    id: int
+
 #Cadastro dos pedidos
 class pedidoEntrada(BaseModel):
-    numero_da_mesa: str
+    numero_da_mesa: int
     estado_pedido: str
-    funcionarios_id: int
-    pedido_produto_id: int
+    funcionario_id: int
     data_criacao: str
 
 class pedido(pedidoEntrada):
