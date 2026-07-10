@@ -1,144 +1,191 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Depends
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List
 
-from database import DatabaseConfig
-from dao import FuncionarioDAO, GerenteDAO, CategoriaDAO, ProdutoDAO, PedidoDAO, PedidoProdutoDAO
-from security import verificar_api_key
-from models import (
-    Funcionario, FuncionarioEntrada, Gerente, GerenteEntrada, 
-    categoria, categoriaEntrada, produto, produtoEntrada, 
-    pedido, pedidoEntrada, pedido_produto, pedido_produtoEntrada
+from database import engine, Base, get_session
+from models import Funcionario, Gerente, Categoria, Produto, Pedido, PedidoProduto
+from schemas import (
+    FuncionarioEntrada, FuncionarioResposta,
+    GerenteEntrada, GerenteResposta,
+    CategoriaEntrada, CategoriaResposta,
+    ProdutoEntrada, ProdutoResposta,
+    PedidoEntrada, PedidoResposta,
+    PedidoProdutoEntrada, PedidoProdutoResposta
 )
+from security import verificar_api_key
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializa o banco de dados via Singleton no início da aplicação
-    DatabaseConfig().init_db()
+    Base.metadata.create_all(bind=engine)  
     yield
 
-app = FastAPI(title="Sistema de Gerenciamento do Espetinho da Esquina", version="1.4", lifespan=lifespan)
-
-# --- DEPENDÊNCIAS PARA INSTANCIAR OS DAOs ---
-def get_funcionario_dao(): return FuncionarioDAO()
-def get_gerente_dao(): return GerenteDAO()
-def get_categoria_dao(): return CategoriaDAO()
-def get_produto_dao(): return ProdutoDAO()
-def get_pedido_dao(): return PedidoDAO()
-def get_pedido_produto_dao(): return PedidoProdutoDAO()
+app = FastAPI(title="API Gestão Espetinho ORM", version="4.0.0", lifespan=lifespan)
 
 
 @app.get("/")
 def raiz():
-    return {"mensagem": "A API utilizando Padrões de Projeto está funcionando!"}
+    return {"mensagem": "API do Espetinho da Esquina rodando com SQLAlchemy!"}
 
-# --- FUNCIONÁRIO ---
-@app.post("/Funcionario", response_model=Funcionario, status_code=201, dependencies=[Depends(verificar_api_key)])
-def criar_funcionario(dados: FuncionarioEntrada, dao: FuncionarioDAO = Depends(get_funcionario_dao)):
-    id_criado = dao.criar(dados)
-    return Funcionario(id=id_criado, **dados.model_dump())
 
-@app.get("/Funcionario", response_model=List[Funcionario])
-def listar_funcionario(dao: FuncionarioDAO = Depends(get_funcionario_dao)):
-    rows = dao.listar()
-    return [Funcionario(**dict(r)) for r in rows]
 
-@app.get("/Funcionario/{id}", response_model=Funcionario)
-def buscar_funcionario(id: int, dao: FuncionarioDAO = Depends(get_funcionario_dao)):
-    row = dao.buscar_por_id(id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Funcionário não encontrado")
-    return Funcionario(**dict(row))
+@app.post("/Funcionario", response_model=FuncionarioResposta, status_code=201, dependencies=[Depends(verificar_api_key)])
+def criar_funcionario(dados: FuncionarioEntrada, session: Session = Depends(get_session)):
+    func = Funcionario(**dados.model_dump())
+    session.add(func)
+    session.commit()
+    session.refresh(func)
+    return func
+
+@app.get("/Funcionario", response_model=List[FuncionarioResposta])
+def listar_funcionarios(session: Session = Depends(get_session)):
+    return session.query(Funcionario).order_by(Funcionario.nome).all()
+
+@app.get("/Funcionario/{id}", response_model=FuncionarioResposta)
+def buscar_funcionario(id: int, session: Session = Depends(get_session)):
+    func = session.get(Funcionario, id)
+    if func is None:
+        raise HTTPException(404, "Funcionário não encontrado")
+    return func
 
 @app.delete("/Funcionario/{id}", status_code=204, dependencies=[Depends(verificar_api_key)])
-def remover_funcionario(id: int, dao: FuncionarioDAO = Depends(get_funcionario_dao)):
-    if not dao.remover(id):
-        raise HTTPException(status_code=404, detail="Funcionário não encontrado")
+def remover_funcionario(id: int, session: Session = Depends(get_session)):
+    func = session.get(Funcionario, id)
+    if func is None:
+        raise HTTPException(404, "Funcionário não encontrado")
+    session.delete(func)  
+    session.commit()
 
-# --- GERENTE ---
-@app.post("/Gerente", response_model=Gerente, status_code=201, dependencies=[Depends(verificar_api_key)])
-def criar_gerente(dados: GerenteEntrada, dao: GerenteDAO = Depends(get_gerente_dao)):
-    id_criado = dao.criar(dados)
-    return Gerente(id=id_criado, **dados.model_dump())
 
-@app.get("/Gerente/{id}", response_model=Gerente)
-def buscar_gerente(id: int, dao: GerenteDAO = Depends(get_gerente_dao)):
-    row = dao.buscar_por_id(id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Gerente não encontrado")
-    return Gerente(**dict(row))
+
+@app.post("/Gerente", response_model=GerenteResposta, status_code=201, dependencies=[Depends(verificar_api_key)])
+def criar_gerente(dados: GerenteEntrada, session: Session = Depends(get_session)):
+    gerente = Gerente(**dados.model_dump())
+    session.add(gerente)
+    session.commit()
+    session.refresh(gerente)
+    return gerente
+
+@app.get("/Gerente/{id}", response_model=GerenteResposta)
+def buscar_gerente(id: int, session: Session = Depends(get_session)):
+    gerente = session.get(Gerente, id)
+    if gerente is None:
+        raise HTTPException(404, "Gerente não encontrado")
+    return gerente
 
 @app.delete("/Gerente/{id}", status_code=204, dependencies=[Depends(verificar_api_key)])
-def remover_gerente(id: int, dao: GerenteDAO = Depends(get_gerente_dao)):
-    if not dao.remover(id):
-        raise HTTPException(status_code=404, detail="Gerente não encontrado")
+def remover_gerente(id: int, session: Session = Depends(get_session)):
+    gerente = session.get(Gerente, id)
+    if gerente is None:
+        raise HTTPException(404, "Gerente não encontrado")
+    session.delete(gerente)
+    session.commit()
 
-# --- CATEGORIA ---
-@app.post("/Categoria", response_model=categoria, status_code=201, dependencies=[Depends(verificar_api_key)])
-def criar_categoria(dados: categoriaEntrada, dao: CategoriaDAO = Depends(get_categoria_dao)):
-    id_criado = dao.criar(dados)
-    return categoria(id=id_criado, **dados.model_dump())
 
-# --- PRODUTO ---
-@app.post("/Produto", response_model=produto, status_code=201, dependencies=[Depends(verificar_api_key)])
-def criar_produto(dados: produtoEntrada, dao: ProdutoDAO = Depends(get_produto_dao)):
-    id_criado = dao.criar(dados)
-    return produto(id=id_criado, **dados.model_dump())
 
-@app.get("/Produto", response_model=List[produto])
-def listar_produtos(dao: ProdutoDAO = Depends(get_produto_dao)):
-    rows = dao.listar()
-    return [produto(**dict(r)) for r in rows]
+@app.post("/Categoria", response_model=CategoriaResposta, status_code=201, dependencies=[Depends(verificar_api_key)])
+def criar_categoria(dados: CategoriaEntrada, session: Session = Depends(get_session)):
+    categoria_obj = Categoria(**dados.model_dump())
+    session.add(categoria_obj)
+    session.commit()
+    session.refresh(categoria_obj)
+    return categoria_obj
 
-@app.get("/Produto/{id}", response_model=produto)
-def buscar_produto(id: int, dao: ProdutoDAO = Depends(get_produto_dao)):
-    row = dao.buscar_por_id(id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
-    return produto(**dict(row))
+
+
+@app.post("/Produto", response_model=ProdutoResposta, status_code=201, dependencies=[Depends(verificar_api_key)])
+def criar_produto(dados: ProdutoEntrada, session: Session = Depends(get_session)):
+    prod = Produto(**dados.model_dump())
+    session.add(prod)
+    try:
+        session.commit()
+        session.refresh(prod)
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(400, "Categoria informada inválida ou inexistente")
+    return prod
+
+@app.get("/Produto", response_model=List[ProdutoResposta])
+def listar_produtos(session: Session = Depends(get_session)):
+    return session.query(Produto).order_by(Produto.nome).all()
+
+@app.get("/Produto/{id}", response_model=ProdutoResposta)
+def buscar_produto(id: int, session: Session = Depends(get_session)):
+    prod = session.get(Produto, id)
+    if prod is None:
+        raise HTTPException(404, "Produto não encontrado")
+    return prod
 
 @app.delete("/Produto/{id}", status_code=204, dependencies=[Depends(verificar_api_key)])
-def remover_produto(id: int, dao: ProdutoDAO = Depends(get_produto_dao)):
-    if not dao.remover(id):
-        raise HTTPException(status_code=404, detail="Produto não encontrado")
+def remover_produto(id: int, session: Session = Depends(get_session)):
+    prod = session.get(Produto, id)
+    if prod is None:
+        raise HTTPException(404, "Produto não encontrado")
+    session.delete(prod)
+    session.commit()
 
-# --- PEDIDO ---
-@app.post("/Pedido", response_model=pedido, status_code=201)
-def criar_pedido(dados: pedidoEntrada, dao: PedidoDAO = Depends(get_pedido_dao)):
-    id_criado = dao.criar(dados)
-    return pedido(id=id_criado, **dados.model_dump())
 
-@app.get("/Pedido", response_model=List[pedido])
-def listar_pedidos(dao: PedidoDAO = Depends(get_pedido_dao)):
-    rows = dao.listar()
-    return [pedido(**dict(r)) for r in rows]
 
-@app.get("/Pedido/{id}", response_model=pedido)
-def buscar_pedido(id: int, dao: PedidoDAO = Depends(get_pedido_dao)):
-    row = dao.buscar_por_id(id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    return pedido(**dict(row))
+@app.post("/Pedido", response_model=PedidoResposta, status_code=201)
+def criar_pedido(dados: PedidoEntrada, session: Session = Depends(get_session)):
+    pedido_obj = Pedido(**dados.model_dump())
+    session.add(pedido_obj)
+    try:
+        session.commit()
+        session.refresh(pedido_obj)
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(400, "Funcionário informado inválido ou inexistente")
+    return pedido_obj
 
-@app.patch("/pedidos/{id}", response_model=pedido)
-def atualizar_estado_pedido(id: int, novo_estado: str, dao: PedidoDAO = Depends(get_pedido_dao)):
-    if not dao.atualizar_estado(id, novo_estado):
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    row = dao.buscar_por_id(id)
-    return pedido(**dict(row))
+@app.get("/Pedido", response_model=List[PedidoResposta])
+def listar_pedidos(session: Session = Depends(get_session)):
+    return session.query(Pedido).all()
+
+@app.get("/Pedido/{id}", response_model=PedidoResposta)
+def buscar_pedido(id: int, session: Session = Depends(get_session)):
+    pedido_obj = session.get(Pedido, id)
+    if pedido_obj is None:
+        raise HTTPException(404, "Pedido não encontrado")
+    return pedido_obj
+
+@app.patch("/pedidos/{id}", response_model=PedidoResposta)
+def atualizar_estado_pedido(id: int, novo_estado: str, session: Session = Depends(get_session)):
+    pedido_obj = session.get(Pedido, id)
+    if pedido_obj is None:
+        raise HTTPException(404, "Pedido não encontrado")
+    pedido_obj.estado_pedido = novo_estado
+    session.commit()
+    session.refresh(pedido_obj)
+    return pedido_obj
 
 @app.delete("/Pedido/{id}", status_code=204)
-def remover_pedido(id: int, dao: PedidoDAO = Depends(get_pedido_dao)):
-    if not dao.remover(id):
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+def remover_pedido(id: int, session: Session = Depends(get_session)):
+    pedido_obj = session.get(Pedido, id)
+    if pedido_obj is None:
+        raise HTTPException(404, "Pedido não encontrado")
+    session.delete(pedido_obj)
+    session.commit()
 
-# --- PEDIDO PRODUTO (N-N) ---
-@app.post("/Pedido e Produto", response_model=pedido_produto, status_code=201)
-def criar_pedido_produto(dados: pedido_produtoEntrada, dao: PedidoProdutoDAO = Depends(get_pedido_produto_dao)):
-    id_criado = dao.criar(dados)
-    return pedido_produto(id=id_criado, **dados.model_dump())
+
+
+@app.post("/Pedido e Produto", response_model=PedidoProdutoResposta, status_code=201)
+def criar_pedido_produto(dados: PedidoProdutoEntrada, session: Session = Depends(get_session)):
+    vinc = PedidoProduto(**dados.model_dump())
+    session.add(vinc)
+    try:
+        session.commit()
+        session.refresh(vinc)
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(409, "Este produto já está associado a este pedido (Relação Duplicada)")
+    return vinc
 
 @app.delete("/Pedido e Produto/{id}", status_code=204)
-def remover_pedido_produto(id: int, dao: PedidoProdutoDAO = Depends(get_pedido_produto_dao)):
-    if not dao.remover(id):
-        raise HTTPException(status_code=404, detail="Pedido/Produto não encontrado")
+def remover_pedido_produto(id: int, session: Session = Depends(get_session)):
+    vinc = session.get(PedidoProduto, id)
+    if vinc is None:
+        raise HTTPException(404, "Vínculo de Pedido/Produto não encontrado")
+    session.delete(vinc)
+    session.commit()
