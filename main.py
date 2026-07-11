@@ -21,12 +21,12 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)  
     yield
 
-app = FastAPI(title="API Gestão Espetinho ORM", version="4.0.0", lifespan=lifespan)
+app = FastAPI(title="Sistema de Gestão do Espetinho da Esquina", version="1.4", lifespan=lifespan)
 
 
 @app.get("/")
 def raiz():
-    return {"mensagem": "API do Espetinho da Esquina rodando com SQLAlchemy!"}
+    return {"mensagem": "API do Espetinho da Esquina está funcionando!"}
 
 
 
